@@ -1,0 +1,28 @@
+{
+  "name": "indexnow-worker",
+  "version": "1.0.0",
+  "description": "Automatic IndexNow submission via Cloudflare Workers",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "indexnow",
+    "cloudflare-workers",
+    "sitemap",
+    "seo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0",
+    "wrangler": "^3.80.0"
+  }
+}

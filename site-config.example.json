@@ -1,0 +1,17 @@
+{
+  "id": "example.com",
+  "name": "Example Site",
+  "sitemapUrl": "https://example.com/sitemap.xml",
+  "apiKey": "your-32-character-indexnow-api-key-here",
+  "keyLocation": "https://example.com/your-32-character-indexnow-api-key-here.txt",
+  "searchEngines": ["api.indexnow.org"],
+  "enabled": true,
+  "interval": 6,
+  "lastRunTime": 0,
+  "maxConcurrentRequests": 3,
+  "requestIntervalMs": 100,
+  "maxRetries": 3,
+  "cacheTtlDays": 30,
+  "createdAt": "",
+  "updatedAt": ""
+}
