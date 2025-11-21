@@ -23,11 +23,12 @@ export default {
         return await handleSitesAPI(request, env)
       }
 
+      if (path.startsWith('/api/stats')) {
+        return await handleStatsAPI(request, env)
+      }
+
       // 基础路由处理
       switch (path) {
-        case '/':
-          return handleRoot()
-
         case '/trigger':
           return await handleTrigger(request, env)
 
@@ -141,87 +142,6 @@ export default {
       throw error
     }
   },
-}
-
-/**
- * 根路径 - 显示欢迎信息
- */
-function handleRoot(): Response {
-  const html = `
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IndexNow Worker</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      max-width: 800px;
-      margin: 50px auto;
-      padding: 20px;
-      line-height: 1.6;
-    }
-    h1 { color: #2563eb; }
-    code {
-      background: #f3f4f6;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 0.9em;
-    }
-    .endpoint {
-      background: #f9fafb;
-      border-left: 4px solid #2563eb;
-      padding: 12px;
-      margin: 10px 0;
-    }
-  </style>
-</head>
-<body>
-  <h1>🚀 IndexNow Worker</h1>
-  <p>自动采集网站地图并提交到 IndexNow API</p>
-
-  <h2>可用端点</h2>
-
-  <div class="endpoint">
-    <strong>GET /trigger</strong><br>
-    手动触发 URL 采集和提交
-  </div>
-
-  <div class="endpoint">
-    <strong>GET /status</strong><br>
-    查看最近执行状态
-  </div>
-
-  <div class="endpoint">
-    <strong>GET /health</strong><br>
-    健康检查
-  </div>
-
-  <div class="endpoint">
-    <strong>GET /config</strong><br>
-    查看配置信息（已脱敏）
-  </div>
-
-  <div class="endpoint">
-    <strong>GET /history</strong><br>
-    查看最近 10 次执行历史
-  </div>
-
-  <h2>定时任务</h2>
-  <p>系统会根据 Cron 配置自动执行（每 6 小时一次）</p>
-
-  <footer style="margin-top: 40px; color: #6b7280; font-size: 0.9em;">
-    Powered by Cloudflare Workers |
-    <a href="https://github.com/anthropics/claude-code" target="_blank">Claude Code</a>
-  </footer>
-</body>
-</html>
-  `
-
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  })
 }
 
 /**
@@ -457,6 +377,182 @@ async function handleSitesAPI(request: Request, env: Env): Promise<Response> {
     )
   } catch (error) {
     logger.error('Sites API error:', error)
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+}
+
+/**
+ * 统计 API 处理器
+ */
+async function handleStatsAPI(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url)
+  const path = url.pathname
+  const method = request.method
+
+  try {
+    // GET /api/stats/daily - 每日统计
+    if (path === '/api/stats/daily' && method === 'GET') {
+      const days = parseInt(url.searchParams.get('days') || '7', 10)
+      const siteId = url.searchParams.get('site')
+
+      const manager = new SiteConfigManager(env.CACHE)
+      const sites = siteId
+        ? [await manager.getSite(siteId)].filter(Boolean)
+        : await manager.listSites()
+
+      // 收集所有站点的历史记录
+      const allRecords: Array<{
+        siteId: string
+        siteName: string
+        timestamp: string
+        stats: any
+      }> = []
+
+      for (const site of sites) {
+        const historyKey = `sites:history:${site!.id}`
+        const historyData = await env.CACHE.get(historyKey)
+        const history = historyData ? JSON.parse(historyData) : []
+
+        history.forEach((record: any) => {
+          allRecords.push({
+            siteId: site!.id,
+            siteName: site!.name,
+            timestamp: record.timestamp,
+            stats: record.stats,
+          })
+        })
+      }
+
+      // 按日期分组统计
+      const dailyStats = new Map<
+        string,
+        {
+          date: string
+          total: number
+          successful: number
+          failed: number
+          skipped: number
+          sites: Set<string>
+          executions: number
+        }
+      >()
+
+      const cutoffDate = new Date()
+      cutoffDate.setDate(cutoffDate.getDate() - days)
+
+      allRecords.forEach((record) => {
+        const recordDate = new Date(record.timestamp)
+        if (recordDate < cutoffDate) return
+
+        const dateKey = recordDate.toISOString().split('T')[0] // YYYY-MM-DD
+
+        if (!dailyStats.has(dateKey)) {
+          dailyStats.set(dateKey, {
+            date: dateKey,
+            total: 0,
+            successful: 0,
+            failed: 0,
+            skipped: 0,
+            sites: new Set(),
+            executions: 0,
+          })
+        }
+
+        const dayStat = dailyStats.get(dateKey)!
+        dayStat.total += record.stats.total || 0
+        dayStat.successful += record.stats.successful || 0
+        dayStat.failed += record.stats.failed || 0
+        dayStat.skipped += record.stats.skipped || 0
+        dayStat.sites.add(record.siteId)
+        dayStat.executions += 1
+      })
+
+      // 转换为数组并排序（最新的在前）
+      const dailyArray = Array.from(dailyStats.values())
+        .map((stat) => ({
+          ...stat,
+          sites: stat.sites.size,
+        }))
+        .sort((a, b) => b.date.localeCompare(a.date))
+
+      // 计算总计
+      const summary = {
+        totalUrlsSubmitted: dailyArray.reduce((sum, d) => sum + d.total, 0),
+        totalSuccessful: dailyArray.reduce((sum, d) => sum + d.successful, 0),
+        totalFailed: dailyArray.reduce((sum, d) => sum + d.failed, 0),
+        totalExecutions: dailyArray.reduce((sum, d) => sum + d.executions, 0),
+        uniqueSites: new Set(allRecords.map((r) => r.siteId)).size,
+        dateRange: {
+          from: cutoffDate.toISOString().split('T')[0],
+          to: new Date().toISOString().split('T')[0],
+        },
+      }
+
+      return new Response(
+        JSON.stringify(
+          {
+            success: true,
+            summary,
+            daily: dailyArray,
+          },
+          null,
+          2
+        ),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // GET /api/stats/summary - 总体统计
+    if (path === '/api/stats/summary' && method === 'GET') {
+      const manager = new SiteConfigManager(env.CACHE)
+      const sites = await manager.listSites()
+
+      let totalUrlsSubmitted = 0
+      let totalExecutions = 0
+
+      for (const site of sites) {
+        const historyKey = `sites:history:${site.id}`
+        const historyData = await env.CACHE.get(historyKey)
+        const history = historyData ? JSON.parse(historyData) : []
+
+        totalExecutions += history.length
+        history.forEach((record: any) => {
+          totalUrlsSubmitted += record.stats.total || 0
+        })
+      }
+
+      return new Response(
+        JSON.stringify(
+          {
+            success: true,
+            stats: {
+              totalSites: sites.length,
+              enabledSites: sites.filter((s) => s.enabled).length,
+              totalUrlsSubmitted,
+              totalExecutions,
+              lastUpdate: new Date().toISOString(),
+            },
+          },
+          null,
+          2
+        ),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // 不支持的路径
+    return new Response(
+      JSON.stringify({ success: false, error: 'Not found' }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    logger.error('Stats API error:', error)
     return new Response(
       JSON.stringify({
         success: false,

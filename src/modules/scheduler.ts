@@ -207,17 +207,31 @@ export class Scheduler {
       const lastExecKey = `sites:last_execution:${this.siteId}`
       await this.env.CACHE.put(lastExecKey, JSON.stringify(record))
 
-      // 保存执行历史（站点级别，最近 10 次）
+      // 保存执行历史（站点级别，最近 100 次 + 1 年内）
       const historyKey = `sites:history:${this.siteId}`
       const historyData = await this.env.CACHE.get(historyKey)
       const history = historyData ? JSON.parse(historyData) : []
 
       history.unshift(record) // 添加到开头
-      const recentHistory = history.slice(0, 10) // 只保留最近 10 次
+
+      // 双重过滤：数量限制 + 时间限制
+      // 1. 只保留最近 100 次执行
+      // 2. 只保留 1 年内的数据（自动清理过期记录）
+      const oneYearAgo = new Date()
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
+      const recentHistory = history
+        .slice(0, 100) // 数量限制：最多100条
+        .filter((record: any) => {
+          const recordDate = new Date(record.timestamp)
+          return recordDate > oneYearAgo // 时间限制：1年内
+        })
 
       await this.env.CACHE.put(historyKey, JSON.stringify(recentHistory))
 
-      logger.info(`Execution record saved to KV for site: ${this.siteId}`)
+      logger.info(
+        `Execution record saved for site: ${this.siteId} (kept ${recentHistory.length}/${history.length} records)`
+      )
     } catch (error) {
       logger.error('Failed to save execution record:', error)
     }

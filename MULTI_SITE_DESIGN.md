@@ -74,12 +74,19 @@ sites:list                           → string[] (所有网站ID)
 sites:cache:{siteId}:url:{urlHash}   → timestamp
 
 # 执行历史（每个网站独立）
-sites:history:{siteId}               → ExecutionRecord[] (最近10次)
+sites:history:{siteId}               → ExecutionRecord[] (最近100次 + 1年内自动清理)
 sites:last_execution:{siteId}        → ExecutionRecord
 
 # 全局统计
 sites:stats:global                   → GlobalStats
 ```
+
+**历史记录自动清理策略**:
+- **数量限制**: 最多保留 100 条记录
+- **时间限制**: 只保留 1 年内（365天）的数据
+- **清理时机**: 每次保存新记录时自动清理过期数据
+- **清理逻辑**: 先按数量取前100条，再过滤掉1年前的记录
+- **存储优化**: 约 100-200 KB/站点，远低于 KV 25MB 限制
 
 ### 3. 执行记录 (ExecutionRecord)
 
