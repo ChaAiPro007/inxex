@@ -22,9 +22,14 @@ export class UrlCache {
 
   /**
    * 生成缓存 Key（命名空间隔离）
+   * @param url URL 字符串
+   * @param channel 提交渠道（'indexnow' 或 'bing'），默认 'indexnow'
    */
-  private getCacheKey(url: string): string {
+  private getCacheKey(url: string, channel: 'indexnow' | 'bing' = 'indexnow'): string {
     const hash = this.hashUrl(url)
+    if (channel === 'bing') {
+      return `url_cache:bing:${this.siteId}:${hash}`
+    }
     return `sites:cache:${this.siteId}:url:${hash}`
   }
 
@@ -43,20 +48,25 @@ export class UrlCache {
 
   /**
    * 检查 URL 是否已缓存
+   * @param url URL 字符串
+   * @param channel 提交渠道（'indexnow' 或 'bing'），默认 'indexnow'
    */
-  async isCached(url: string): Promise<boolean> {
-    const key = this.getCacheKey(url)
+  async isCached(url: string, channel: 'indexnow' | 'bing' = 'indexnow'): Promise<boolean> {
+    const key = this.getCacheKey(url, channel)
     const value = await this.kv.get(key)
     return value !== null
   }
 
   /**
    * 添加 URL 到缓存
+   * @param url URL 字符串
+   * @param channel 提交渠道（'indexnow' 或 'bing'），默认 'indexnow'
    */
-  async add(url: string): Promise<void> {
-    const key = this.getCacheKey(url)
+  async add(url: string, channel: 'indexnow' | 'bing' = 'indexnow'): Promise<void> {
+    const key = this.getCacheKey(url, channel)
     const data = {
       url,
+      channel,
       timestamp: Date.now(),
     }
 
@@ -67,15 +77,17 @@ export class UrlCache {
 
   /**
    * 批量检查 URL
+   * @param urls URL 列表
+   * @param channel 提交渠道（'indexnow' 或 'bing'），默认 'indexnow'
    */
-  async filterNewUrls(urls: string[]): Promise<string[]> {
+  async filterNewUrls(urls: string[], channel: 'indexnow' | 'bing' = 'indexnow'): Promise<string[]> {
     const newUrls: string[] = []
 
-    logger.info(`Checking ${urls.length} URLs against cache...`)
+    logger.info(`Checking ${urls.length} URLs against ${channel} cache...`)
 
     // 批量检查（并行）
     const checkPromises = urls.map(async (url) => {
-      const cached = await this.isCached(url)
+      const cached = await this.isCached(url, channel)
       if (!cached) {
         newUrls.push(url)
       }
@@ -90,11 +102,13 @@ export class UrlCache {
 
   /**
    * 批量添加 URL
+   * @param urls URL 列表
+   * @param channel 提交渠道（'indexnow' 或 'bing'），默认 'indexnow'
    */
-  async addBatch(urls: string[]): Promise<void> {
-    logger.info(`Adding ${urls.length} URLs to cache...`)
+  async addBatch(urls: string[], channel: 'indexnow' | 'bing' = 'indexnow'): Promise<void> {
+    logger.info(`Adding ${urls.length} URLs to ${channel} cache...`)
 
-    const addPromises = urls.map((url) => this.add(url))
+    const addPromises = urls.map((url) => this.add(url, channel))
     await Promise.all(addPromises)
 
     logger.info(`Successfully cached ${urls.length} URLs`)

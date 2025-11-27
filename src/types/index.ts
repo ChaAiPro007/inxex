@@ -90,6 +90,12 @@ export interface SiteConfig {
   keyLocation: string // https://example.com/{key}.txt
   searchEngines: string[] // ["api.indexnow.org"]
 
+  // Bing Webmaster 配置
+  bingEnabled: boolean // 是否启用 Bing 提交
+  bingApiKey?: string // Bing Webmaster API Key (可选)
+  bingDailyQuota: number // Bing 每日配额限制
+  bingPriority: 'newest' | 'random' // URL 优先级策略
+
   // 调度配置
   enabled: boolean // 是否启用自动提交
   interval: number // 提交间隔（小时）
@@ -127,6 +133,12 @@ export interface CreateSiteInput {
   requestIntervalMs?: number
   maxRetries?: number
   cacheTtlDays?: number
+
+  // Bing Webmaster 可选字段
+  bingEnabled?: boolean
+  bingApiKey?: string
+  bingDailyQuota?: number
+  bingPriority?: 'newest' | 'random'
 }
 
 /**
@@ -149,6 +161,7 @@ export interface ExecutionRecord {
     statusCode?: number
     error?: string | null
   }>
+  bingStats?: BingStats  // Bing 提交统计
 }
 
 /**
@@ -160,4 +173,38 @@ export interface GlobalStats {
   totalUrlsSubmitted: number
   totalExecutions: number
   lastUpdate: string
+}
+
+/**
+ * Bing Webmaster 提交结果
+ */
+export interface BingSubmissionResult {
+  success: boolean
+  statusCode?: number
+  errorCode?: string
+  errorMessage?: string
+  urlCount: number
+  timestamp: number
+}
+
+/**
+ * Bing 配额记录（KV 存储格式）
+ */
+export interface BingQuotaRecord {
+  used: number        // 当日已用
+  lastUpdate: string  // ISO 8601 时间戳
+}
+
+/**
+ * Bing 提交统计（执行记录中的字段）
+ */
+export interface BingStats {
+  enabled: boolean
+  submitted: number   // 本次提交数量
+  successful: number  // 成功数量
+  failed: number      // 失败数量
+  skipped: number     // 跳过数量（配额不足等）
+  quotaUsed: number   // 配额使用
+  quotaRemaining: number // 剩余配额
+  error?: string      // 错误信息
 }

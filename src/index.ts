@@ -4,9 +4,10 @@
  */
 
 import { Env, SiteConfig, CreateSiteInput } from './types'
-import { Scheduler } from './modules/scheduler'
+import { Scheduler, SubmissionChannel } from './modules/scheduler'
 import { loadConfig, getConfigSummary } from './modules/config'
 import { SiteConfigManager } from './modules/site-config-manager'
+import { QuotaManager } from './modules/quota-manager'
 import { logger } from './utils/logger'
 
 /**
@@ -145,22 +146,31 @@ export default {
 }
 
 /**
- * 手动触发执行（支持多网站）
+ * 手动触发执行（支持多网站和渠道选择）
+ * @param channel - 提交渠道: 'all' | 'indexnow' | 'bing'
  */
 async function handleTrigger(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const siteId = url.searchParams.get('site') || 'default'
+  const channelParam = url.searchParams.get('channel') || 'all'
 
-  logger.info(`Manual trigger requested for site: ${siteId}`)
+  // 验证 channel 参数
+  const validChannels: SubmissionChannel[] = ['all', 'indexnow', 'bing']
+  const channel: SubmissionChannel = validChannels.includes(channelParam as SubmissionChannel)
+    ? (channelParam as SubmissionChannel)
+    : 'all'
+
+  logger.info(`Manual trigger requested for site: ${siteId}, channel: ${channel}`)
 
   try {
-    const scheduler = new Scheduler(env, siteId)
+    const scheduler = new Scheduler(env, siteId, channel)
     const stats = await scheduler.run()
 
     return new Response(
       JSON.stringify({
         success: true,
         siteId,
+        channel,
         message: 'Execution completed',
         stats,
         report: scheduler.formatStatsReport(stats),
@@ -174,6 +184,7 @@ async function handleTrigger(request: Request, env: Env): Promise<Response> {
       JSON.stringify({
         success: false,
         siteId,
+        channel,
         error: error instanceof Error ? error.message : String(error),
       }),
       {
@@ -195,11 +206,24 @@ async function handleStatus(request: Request, env: Env): Promise<Response> {
   const lastExecKey = `sites:last_execution:${siteId}`
   const lastExecution = await env.CACHE.get(lastExecKey)
 
+  // 获取 Bing 配额信息（如果启用）
+  let bingQuota = null
+  if (siteId !== 'default') {
+    const manager = new SiteConfigManager(env.CACHE)
+    const siteConfig = await manager.getSite(siteId)
+
+    if (siteConfig?.bingEnabled) {
+      const quotaManager = new QuotaManager(env.CACHE, siteId)
+      bingQuota = await quotaManager.getQuotaStatus(siteConfig.bingDailyQuota)
+    }
+  }
+
   return new Response(
     JSON.stringify({
       status: 'running',
       siteId,
       lastExecution: lastExecution ? JSON.parse(lastExecution) : null,
+      bingQuota,
       timestamp: new Date().toISOString(),
     }),
     {
@@ -429,15 +453,22 @@ async function handleStatsAPI(request: Request, env: Env): Promise<Response> {
         })
       }
 
-      // 按日期分组统计
+      // 按日期分组统计（分 indexnow 和 bing）
       const dailyStats = new Map<
         string,
         {
           date: string
-          total: number
-          successful: number
-          failed: number
-          skipped: number
+          indexnow: {
+            total: number
+            successful: number
+            failed: number
+            skipped: number
+          }
+          bing: {
+            total: number
+            successful: number
+            failed: number
+          }
           sites: Set<string>
           executions: number
         }
@@ -455,20 +486,38 @@ async function handleStatsAPI(request: Request, env: Env): Promise<Response> {
         if (!dailyStats.has(dateKey)) {
           dailyStats.set(dateKey, {
             date: dateKey,
-            total: 0,
-            successful: 0,
-            failed: 0,
-            skipped: 0,
+            indexnow: {
+              total: 0,
+              successful: 0,
+              failed: 0,
+              skipped: 0,
+            },
+            bing: {
+              total: 0,
+              successful: 0,
+              failed: 0,
+            },
             sites: new Set(),
             executions: 0,
           })
         }
 
         const dayStat = dailyStats.get(dateKey)!
-        dayStat.total += record.stats.total || 0
-        dayStat.successful += record.stats.successful || 0
-        dayStat.failed += record.stats.failed || 0
-        dayStat.skipped += record.stats.skipped || 0
+
+        // IndexNow 统计
+        dayStat.indexnow.total += record.stats.total || 0
+        dayStat.indexnow.successful += record.stats.successful || 0
+        dayStat.indexnow.failed += record.stats.failed || 0
+        dayStat.indexnow.skipped += record.stats.skipped || 0
+
+        // Bing 统计（从 record 中获取，如果存在）
+        if ((record as any).bingStats) {
+          const bingStats = (record as any).bingStats
+          dayStat.bing.total += bingStats.total || 0
+          dayStat.bing.successful += bingStats.successful || 0
+          dayStat.bing.failed += bingStats.failed || 0
+        }
+
         dayStat.sites.add(record.siteId)
         dayStat.executions += 1
       })
@@ -483,9 +532,16 @@ async function handleStatsAPI(request: Request, env: Env): Promise<Response> {
 
       // 计算总计
       const summary = {
-        totalUrlsSubmitted: dailyArray.reduce((sum, d) => sum + d.total, 0),
-        totalSuccessful: dailyArray.reduce((sum, d) => sum + d.successful, 0),
-        totalFailed: dailyArray.reduce((sum, d) => sum + d.failed, 0),
+        indexnow: {
+          totalUrlsSubmitted: dailyArray.reduce((sum, d) => sum + d.indexnow.total, 0),
+          totalSuccessful: dailyArray.reduce((sum, d) => sum + d.indexnow.successful, 0),
+          totalFailed: dailyArray.reduce((sum, d) => sum + d.indexnow.failed, 0),
+        },
+        bing: {
+          totalUrlsSubmitted: dailyArray.reduce((sum, d) => sum + d.bing.total, 0),
+          totalSuccessful: dailyArray.reduce((sum, d) => sum + d.bing.successful, 0),
+          totalFailed: dailyArray.reduce((sum, d) => sum + d.bing.failed, 0),
+        },
         totalExecutions: dailyArray.reduce((sum, d) => sum + d.executions, 0),
         uniqueSites: new Set(allRecords.map((r) => r.siteId)).size,
         dateRange: {

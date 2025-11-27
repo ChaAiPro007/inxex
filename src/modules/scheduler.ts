@@ -3,13 +3,20 @@
  * 协调各模块完成 URL 采集和提交
  */
 
-import { Env, SubmissionStats, Config } from '../types'
+import { Env, SubmissionStats, Config, BingSubmissionResult, SitemapUrl, BingStats } from '../types'
 import { loadConfig } from './config'
 import { SiteConfigManager } from './site-config-manager'
 import { SitemapCrawler } from './sitemap-crawler'
 import { IndexNowSubmitter } from './indexnow-submitter'
+import { BingSubmitter } from './bing-submitter'
+import { QuotaManager } from './quota-manager'
 import { UrlCache } from './url-cache'
 import { logger } from '../utils/logger'
+
+/**
+ * 提交渠道类型
+ */
+export type SubmissionChannel = 'all' | 'indexnow' | 'bing'
 
 /**
  * 主调度器
@@ -18,11 +25,14 @@ import { logger } from '../utils/logger'
 export class Scheduler {
   private env: Env
   private siteId: string
+  private channel: SubmissionChannel
 
-  constructor(env: Env, siteId?: string) {
+  constructor(env: Env, siteId?: string, channel?: SubmissionChannel) {
     this.env = env
     // 默认使用 'default' 作为站点ID（向后兼容）
     this.siteId = siteId || 'default'
+    // 默认使用 'all' 提交所有渠道
+    this.channel = channel || 'all'
   }
 
   /**
@@ -101,46 +111,192 @@ export class Scheduler {
 
       const urlList = validUrls.map((u) => u.loc)
 
-      // 6. 过滤已提交的 URL
-      const newUrls = await cache.filterNewUrls(urlList)
-      logger.info(`${newUrls.length} new URLs to submit`)
+      // 6. IndexNow 提交（如果渠道包含 indexnow）
+      let results: any[] = []
+      let newUrls: string[] = []
 
-      if (newUrls.length === 0) {
-        logger.info('No new URLs to submit')
+      if (this.channel === 'all' || this.channel === 'indexnow') {
+        // 过滤已提交的 URL（IndexNow 渠道）
+        newUrls = await cache.filterNewUrls(urlList, 'indexnow')
+        logger.info(`${newUrls.length} new URLs to submit to IndexNow`)
+
+        if (newUrls.length > 0) {
+          // 7. 提交 URL 到 IndexNow（批量 POST）
+          logger.info('Starting IndexNow batch submission...')
+          results = await submitter.submitUrls(newUrls)
+
+          // 8. 缓存成功提交的 URL (IndexNow)
+          const allSuccess = results.every((r) => r.success)
+
+          if (allSuccess && newUrls.length > 0) {
+            // 所有批次都成功，缓存所有 URL
+            logger.info('All IndexNow batches successful, caching all URLs...')
+            await cache.addBatch(newUrls, 'indexnow')
+          } else if (results.some((r) => r.success)) {
+            // 部分成功，只缓存成功的批次对应的 URL
+            logger.warn('Some IndexNow batches failed, caching only successful URLs')
+            await cache.addBatch(newUrls, 'indexnow')
+          }
+        } else {
+          logger.info('No new URLs to submit to IndexNow')
+        }
+      } else {
+        logger.info('IndexNow submission skipped (channel: bing only)')
+      }
+
+      // 9. Bing Webmaster 提交（如果渠道包含 bing）
+      let bingResults: BingSubmissionResult[] = []
+      let bingQuotaInfo: { used: number; remaining: number } | undefined
+
+      if (this.channel === 'all' || this.channel === 'bing') {
+        if (this.siteId !== 'default') {
+          const manager = new SiteConfigManager(this.env.CACHE)
+          const siteConfig = await manager.getSite(this.siteId)
+
+          if (siteConfig?.bingEnabled && siteConfig.bingApiKey) {
+            logger.info('=== Starting Bing Webmaster Submission ===')
+            const bingResult = await this.submitToBing(
+              siteConfig,
+              sitemapUrls,
+              cache
+            )
+            bingResults = bingResult.results
+            bingQuotaInfo = bingResult.quotaInfo
+          } else {
+            logger.info('Bing submission not enabled for this site')
+          }
+        } else {
+          logger.info('Bing submission not available for default site')
+        }
+      } else {
+        logger.info('Bing submission skipped (channel: indexnow only)')
+      }
+
+      // 检查是否有任何提交
+      if (results.length === 0 && bingResults.length === 0) {
+        logger.info('No submissions made')
         const emptyStats = this.emptyStats()
         await this.saveExecutionRecord(emptyStats, [])
         return emptyStats
       }
 
-      // 7. 提交 URL 到 IndexNow（批量 POST）
-      logger.info('Starting batch submission...')
-      const results = await submitter.submitUrls(newUrls)
-
-      // 8. 缓存成功提交的 URL
-      const allSuccess = results.every((r) => r.success)
-
-      if (allSuccess && newUrls.length > 0) {
-        // 所有批次都成功，缓存所有 URL
-        logger.info('All batches successful, caching all URLs...')
-        await cache.addBatch(newUrls)
-      } else if (results.some((r) => r.success)) {
-        // 部分成功，只缓存成功的批次对应的 URL
-        logger.warn('Some batches failed, caching only successful URLs')
-        // 注意：这里简化处理，如果需要精确追踪每个批次的 URL，需要更复杂的逻辑
-        await cache.addBatch(newUrls)
-      }
-
-      // 9. 统计结果
+      // 10. 统计结果
       const stats = this.calculateStats(results, newUrls.length, startTime)
       logger.info('=== Execution Complete ===', stats)
 
-      // 10. 保存执行记录到 KV
-      await this.saveExecutionRecord(stats, results)
+      // 11. 保存执行记录到 KV
+      await this.saveExecutionRecord(stats, results, bingResults, bingQuotaInfo)
 
       return stats
     } catch (error) {
       logger.error('Scheduler execution failed:', error)
       throw error
+    }
+  }
+
+  /**
+   * 提交到 Bing Webmaster
+   * @param siteConfig 网站配置
+   * @param sitemapUrls Sitemap URL 列表（含 lastmod）
+   * @param cache URL 缓存实例
+   * @returns Bing 提交结果和配额信息
+   */
+  private async submitToBing(
+    siteConfig: any,
+    sitemapUrls: SitemapUrl[],
+    cache: UrlCache
+  ): Promise<{
+    results: BingSubmissionResult[]
+    quotaInfo: { used: number; remaining: number }
+  }> {
+    try {
+      // 1. 初始化配额管理器
+      const quotaManager = new QuotaManager(this.env.CACHE, this.siteId)
+      const initialUsed = await quotaManager.getUsedToday()
+      const remaining = siteConfig.bingDailyQuota - initialUsed
+
+      logger.info(`Bing quota: ${remaining}/${siteConfig.bingDailyQuota} remaining`)
+
+      if (remaining <= 0) {
+        logger.warn('Bing daily quota exhausted, skipping submission')
+        return {
+          results: [],
+          quotaInfo: { used: initialUsed, remaining: 0 },
+        }
+      }
+
+      // 2. 提取 siteUrl (origin)
+      const siteUrl = new URL(siteConfig.sitemapUrl).origin
+
+      // 3. 根据优先级策略选择 URL
+      let selectedUrls: string[]
+      const allUrls = sitemapUrls.map((u) => u.loc)
+
+      if (siteConfig.bingPriority === 'newest') {
+        // 按 lastmod 降序排序，无 lastmod 的排在最后
+        const sorted = [...sitemapUrls].sort((a, b) => {
+          const dateA = a.lastmod ? new Date(a.lastmod).getTime() : 0
+          const dateB = b.lastmod ? new Date(b.lastmod).getTime() : 0
+          return dateB - dateA
+        })
+        selectedUrls = sorted.slice(0, remaining).map((u) => u.loc)
+      } else {
+        // random: 随机选择
+        const shuffled = [...allUrls].sort(() => Math.random() - 0.5)
+        selectedUrls = shuffled.slice(0, remaining)
+      }
+
+      logger.info(`Selected ${selectedUrls.length} URLs for Bing submission (strategy: ${siteConfig.bingPriority})`)
+
+      // 4. 过滤已提交到 Bing 的 URL
+      const newUrls = await cache.filterNewUrls(selectedUrls, 'bing')
+      logger.info(`${newUrls.length} new URLs to submit to Bing`)
+
+      if (newUrls.length === 0) {
+        logger.info('No new URLs to submit to Bing')
+        return {
+          results: [],
+          quotaInfo: { used: initialUsed, remaining },
+        }
+      }
+
+      // 5. 限制在配额范围内
+      const urlsToSubmit = newUrls.slice(0, remaining)
+      logger.info(`Submitting ${urlsToSubmit.length} URLs to Bing`)
+
+      // 6. 初始化 Bing 提交器
+      const bingSubmitter = new BingSubmitter(siteConfig.bingApiKey, siteUrl)
+
+      // 7. 提交 URL
+      const results = await bingSubmitter.submitUrls(urlsToSubmit)
+
+      // 8. 更新配额
+      const successfulCount = results.reduce(
+        (sum, r) => sum + (r.success ? r.urlCount : 0),
+        0
+      )
+
+      if (successfulCount > 0) {
+        await quotaManager.incrementUsed(successfulCount, siteConfig.bingDailyQuota)
+        // 缓存成功提交的 URL
+        await cache.addBatch(urlsToSubmit, 'bing')
+      }
+
+      const finalUsed = initialUsed + successfulCount
+      const finalRemaining = Math.max(0, siteConfig.bingDailyQuota - finalUsed)
+
+      logger.info(`Bing submission complete: ${successfulCount} URLs submitted`)
+
+      return {
+        results,
+        quotaInfo: { used: finalUsed, remaining: finalRemaining },
+      }
+    } catch (error) {
+      logger.error('Bing submission failed:', error)
+      return {
+        results: [],
+        quotaInfo: { used: 0, remaining: 0 },
+      }
     }
   }
 
@@ -189,9 +345,35 @@ export class Scheduler {
    */
   private async saveExecutionRecord(
     stats: SubmissionStats,
-    results: any[]
+    results: any[],
+    bingResults?: BingSubmissionResult[],
+    bingQuotaInfo?: { used: number; remaining: number }
   ): Promise<void> {
     try {
+      // 计算 Bing 统计
+      let bingStats: BingStats | undefined
+      if (bingResults && bingResults.length > 0) {
+        const submitted = bingResults.reduce((sum, r) => sum + r.urlCount, 0)
+        const successful = bingResults
+          .filter((r) => r.success)
+          .reduce((sum, r) => sum + r.urlCount, 0)
+        const failed = bingResults
+          .filter((r) => !r.success)
+          .reduce((sum, r) => sum + r.urlCount, 0)
+        const firstError = bingResults.find((r) => !r.success)
+
+        bingStats = {
+          enabled: true,
+          submitted,
+          successful,
+          failed,
+          skipped: 0,
+          quotaUsed: bingQuotaInfo?.used || successful,
+          quotaRemaining: bingQuotaInfo?.remaining || 0,
+          error: firstError?.errorMessage,
+        }
+      }
+
       const record = {
         siteId: this.siteId,
         timestamp: new Date().toISOString(),
@@ -199,8 +381,9 @@ export class Scheduler {
         batches: results.map((r) => ({
           success: r.success,
           statusCode: r.statusCode,
-          error: r.error || null,
+          error: r.errorMessage || r.error || null,
         })),
+        bingStats,
       }
 
       // 保存最近一次执行（站点级别）

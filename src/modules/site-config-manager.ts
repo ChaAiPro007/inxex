@@ -48,6 +48,13 @@ export class SiteConfigManager {
       apiKey: input.apiKey,
       keyLocation,
       searchEngines: input.searchEngines || ['api.indexnow.org'],
+
+      // Bing Webmaster 默认值
+      bingEnabled: input.bingEnabled !== undefined ? input.bingEnabled : false,
+      bingApiKey: input.bingApiKey,
+      bingDailyQuota: input.bingDailyQuota || 100,  // Bing API 每日默认配额
+      bingPriority: input.bingPriority || 'newest',
+
       enabled: input.enabled !== undefined ? input.enabled : true,
       interval: input.interval || 6,
       lastRunTime: input.lastRunTime || 0,
@@ -294,6 +301,19 @@ export class SiteConfigManager {
     // 3. 搜索引擎验证
     if (!config.searchEngines || config.searchEngines.length === 0) {
       errors.push('At least one search engine is required')
+    }
+
+    // 3.5. Bing 配置验证
+    if (config.bingEnabled && !config.bingApiKey) {
+      errors.push('Bing API key is required when Bing submission is enabled')
+    }
+
+    if (config.bingApiKey && !/^[a-f0-9]{32,}$/.test(config.bingApiKey)) {
+      errors.push('Invalid Bing API key format (expected 32+ hex chars)')
+    }
+
+    if (config.bingDailyQuota < 1 || config.bingDailyQuota > 500) {
+      errors.push('Bing daily quota must be between 1-500')
     }
 
     // 4. 网络验证（可选，暂时禁用以避免添加配置时的额外延迟）
