@@ -1,0 +1,47 @@
+# IndexNow Worker 配置示例
+# 复制此文件为 wrangler.toml 并填入你的配置
+
+name = "indexnow-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-10"
+
+# Worker 配置
+workers_dev = true
+
+# Cloudflare 账户 ID
+# 获取方式: 登录 Cloudflare Dashboard -> 点击任意域名 -> 右侧边栏 "Account ID"
+account_id = "your-cloudflare-account-id"
+
+# KV 命名空间
+# 创建方式: wrangler kv:namespace create "CACHE"
+# 将输出的 id 填入下方
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id"
+
+# 环境变量（单网站模式 - 向后兼容，可选）
+# 多网站模式下可以忽略这些配置，通过 API 添加网站
+[vars]
+SITEMAP_URL = "https://example.com/sitemap.xml"
+SITE_HOST = "example.com"
+MAX_CONCURRENT_REQUESTS = "3"
+REQUEST_INTERVAL_MS = "100"
+CACHE_TTL_DAYS = "30"
+MAX_RETRIES = "3"
+CRON_SCHEDULE = "0 */6 * * *"
+
+# IndexNow API 密钥（单网站模式，可选）
+# 使用 wrangler secret put INDEXNOW_API_KEY 命令添加
+# 输入你的 IndexNow API Key（32位十六进制字符）
+# 示例: openssl rand -hex 16
+
+# Cron 触发器
+# 定时执行 URL 提交任务
+[triggers]
+crons = ["0 */6 * * *"]  # 每 6 小时执行一次
+
+# 其他 Cron 示例:
+# crons = ["0 */4 * * *"]  # 每 4 小时
+# crons = ["0 0 * * *"]    # 每天 UTC 0 点
+# crons = ["0 */2 * * *"]  # 每 2 小时
+# crons = ["*/30 * * * *"] # 每 30 分钟
