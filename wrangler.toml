@@ -9,7 +9,7 @@ account_id = "87fec1853af86e652bbd01d7d7d8d86d"
 # KV 命名空间
 [[kv_namespaces]]
 binding = "CACHE"
-id = "965cf9d70f064c01babd64f0765721d9"
+id = "0350235aa8b54c869d850277105c9ffb"
 
 # 环境变量（单网站模式 - 向后兼容，可选）
 [vars]
