@@ -1,0 +1,330 @@
+{
+  "info": {
+    "_postman_id": "indexnow-worker-api-collection",
+    "name": "IndexNow Worker API",
+    "description": "IndexNow Worker API - 自动化 sitemap 采集与 URL 提交系统\n\n部署地址: https://index.seo9.org",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "IndexNow API",
+      "description": "所有 IndexNow Worker API 端点",
+      "item": [
+        {
+          "name": "基础路由",
+          "item": [
+            {
+              "name": "健康检查",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/health",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["health"]
+                },
+                "description": "检查服务运行状态"
+              },
+              "response": [
+                {
+                  "name": "成功响应",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"status\": \"healthy\",\n  \"timestamp\": \"2024-01-01T00:00:00.000Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "查看配置",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/config",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["config"]
+                },
+                "description": "查看当前配置（API Key 已脱敏）"
+              },
+              "response": []
+            },
+            {
+              "name": "查询站点状态",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/status?site=default",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["status"],
+                  "query": [
+                    {
+                      "key": "site",
+                      "value": "default",
+                      "description": "站点ID，默认 default"
+                    }
+                  ]
+                },
+                "description": "查询指定站点的执行状态，包含 Bing 配额信息"
+              },
+              "response": []
+            },
+            {
+              "name": "查询执行历史",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/history?site=default",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["history"],
+                  "query": [
+                    {
+                      "key": "site",
+                      "value": "default",
+                      "description": "站点ID"
+                    }
+                  ]
+                },
+                "description": "查询站点执行历史记录（最近100条）"
+              },
+              "response": []
+            },
+            {
+              "name": "手动触发执行",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/trigger?site=default&channel=all",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["trigger"],
+                  "query": [
+                    {
+                      "key": "site",
+                      "value": "default",
+                      "description": "站点ID"
+                    },
+                    {
+                      "key": "channel",
+                      "value": "all",
+                      "description": "提交渠道: all | indexnow | bing"
+                    }
+                  ]
+                },
+                "description": "手动触发站点 URL 提交\n\nchannel 选项:\n- all: 同时提交到 IndexNow 和 Bing（默认）\n- indexnow: 仅 IndexNow\n- bing: 仅 Bing Webmaster API"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "站点管理",
+          "item": [
+            {
+              "name": "列出所有站点",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/api/sites",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["api", "sites"]
+                },
+                "description": "获取所有已配置的站点列表"
+              },
+              "response": [
+                {
+                  "name": "成功响应",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"sites\": [\n    {\n      \"id\": \"example.com\",\n      \"name\": \"Example Site\",\n      \"sitemapUrl\": \"https://example.com/sitemap.xml\",\n      \"enabled\": true\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "添加新站点",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sitemapUrl\": \"https://example.com/sitemap.xml\",\n  \"apiKey\": \"your-32-char-hex-api-key-here123\",\n  \"name\": \"My Site\",\n  \"enabled\": true,\n  \"interval\": 6,\n  \"bingEnabled\": false\n}"
+                },
+                "url": {
+                  "raw": "https://index.seo9.org/api/sites",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["api", "sites"]
+                },
+                "description": "添加新站点配置\n\n必填字段:\n- sitemapUrl: Sitemap 地址\n- apiKey: IndexNow API Key（32位十六进制字符）\n\n可选字段:\n- id: 站点ID（默认用域名）\n- name: 站点名称\n- enabled: 是否启用（默认 true）\n- interval: 执行间隔小时数（默认 6）\n- bingEnabled: 是否启用 Bing 提交\n- bingApiKey: Bing Webmaster API Key\n- bingDailyQuota: Bing 每日配额（默认 100，范围 1-500）"
+              },
+              "response": [
+                {
+                  "name": "成功响应",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Site example.com added successfully\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "获取单个站点",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/api/sites/example.com",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["api", "sites", "example.com"]
+                },
+                "description": "获取指定站点的详细配置"
+              },
+              "response": [
+                {
+                  "name": "成功响应",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"site\": {\n    \"id\": \"example.com\",\n    \"name\": \"Example Site\",\n    \"sitemapUrl\": \"https://example.com/sitemap.xml\",\n    \"enabled\": true,\n    \"interval\": 6\n  }\n}"
+                },
+                {
+                  "name": "站点不存在",
+                  "status": "Not Found",
+                  "code": 404,
+                  "body": "{\n  \"success\": false,\n  \"error\": \"Site not found\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "更新站点配置",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enabled\": true,\n  \"interval\": 12,\n  \"bingEnabled\": true,\n  \"bingDailyQuota\": 200\n}"
+                },
+                "url": {
+                  "raw": "https://index.seo9.org/api/sites/example.com",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["api", "sites", "example.com"]
+                },
+                "description": "更新站点配置，只传需要更新的字段"
+              },
+              "response": [
+                {
+                  "name": "成功响应",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Site example.com updated successfully\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "删除站点",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/api/sites/example.com",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["api", "sites", "example.com"]
+                },
+                "description": "删除指定站点配置"
+              },
+              "response": [
+                {
+                  "name": "成功响应",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Site example.com deleted successfully\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "统计数据",
+          "item": [
+            {
+              "name": "每日统计",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/api/stats/daily?days=7",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["api", "stats", "daily"],
+                  "query": [
+                    {
+                      "key": "days",
+                      "value": "7",
+                      "description": "统计天数，默认 7"
+                    },
+                    {
+                      "key": "site",
+                      "value": "",
+                      "description": "可选，指定站点ID筛选",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "获取每日 URL 提交统计\n\n返回 IndexNow 和 Bing 分别的提交数据"
+              },
+              "response": [
+                {
+                  "name": "成功响应",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"summary\": {\n    \"indexnow\": {\n      \"totalUrlsSubmitted\": 1000,\n      \"totalSuccessful\": 950,\n      \"totalFailed\": 50\n    },\n    \"bing\": {\n      \"totalUrlsSubmitted\": 500,\n      \"totalSuccessful\": 480,\n      \"totalFailed\": 20\n    },\n    \"totalExecutions\": 28,\n    \"uniqueSites\": 5,\n    \"dateRange\": {\n      \"from\": \"2024-01-01\",\n      \"to\": \"2024-01-07\"\n    }\n  },\n  \"daily\": [\n    {\n      \"date\": \"2024-01-07\",\n      \"indexnow\": {\n        \"total\": 150,\n        \"successful\": 145,\n        \"failed\": 5,\n        \"skipped\": 10\n      },\n      \"bing\": {\n        \"total\": 80,\n        \"successful\": 78,\n        \"failed\": 2\n      },\n      \"sites\": 3,\n      \"executions\": 4\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "总体统计",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://index.seo9.org/api/stats/summary",
+                  "protocol": "https",
+                  "host": ["index", "seo9", "org"],
+                  "path": ["api", "stats", "summary"]
+                },
+                "description": "获取总体统计摘要"
+              },
+              "response": [
+                {
+                  "name": "成功响应",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"success\": true,\n  \"stats\": {\n    \"totalSites\": 5,\n    \"enabledSites\": 4,\n    \"totalUrlsSubmitted\": 15000,\n    \"totalExecutions\": 200,\n    \"lastUpdate\": \"2024-01-07T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
