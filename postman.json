@@ -160,7 +160,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"sitemapUrl\": \"https://example.com/sitemap.xml\",\n  \"apiKey\": \"your-32-char-hex-api-key-here123\",\n  \"name\": \"My Site\",\n  \"enabled\": true,\n  \"interval\": 6,\n  \"bingEnabled\": false\n}"
+                  "raw": "{\n  \"sitemapUrl\": \"https://example.com/sitemap.xml\",\n  \"apiKey\": \"0123456789abcdef0123456789abcdef\",\n  \"name\": \"My Site\",\n  \"enabled\": true,\n  \"interval\": 6\n}"
                 },
                 "url": {
                   "raw": "https://index.seo9.org/api/sites",
