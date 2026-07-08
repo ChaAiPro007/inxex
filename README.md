@@ -186,7 +186,10 @@ echo "wrangler.toml 已生成"
 # 5. 部署
 wrangler deploy
 
-echo "部署完成！"
+# 6. 配置管理接口密钥
+wrangler secret put ADMIN_TOKEN
+
+echo "部署完成！除 /health 外，管理接口需要 Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
 ---
@@ -198,16 +201,16 @@ echo "部署完成！"
 ```bash
 # 命令行生成 32 位十六进制 Key
 openssl rand -hex 16
-# 示例输出: e1ab9d6410ff0f71c525faf0861dd87c
+# 示例输出: 0123456789abcdef0123456789abcdef
 ```
 
 ### 配置 IndexNow Key 验证文件
 
 在网站根目录创建验证文件：
 
-1. 文件名: `{API_KEY}.txt`（如 `e1ab9d6410ff0f71c525faf0861dd87c.txt`）
-2. 文件内容: API Key 本身（如 `e1ab9d6410ff0f71c525faf0861dd87c`）
-3. 确保可访问: `https://yoursite.com/e1ab9d6410ff0f71c525faf0861dd87c.txt`
+1. 文件名: `{API_KEY}.txt`（如 `0123456789abcdef0123456789abcdef.txt`）
+2. 文件内容: API Key 本身（如 `0123456789abcdef0123456789abcdef`）
+3. 确保可访问: `https://yoursite.com/0123456789abcdef0123456789abcdef.txt`
 
 ### 获取 Bing Webmaster API Key
 
@@ -225,6 +228,7 @@ openssl rand -hex 16
 ```bash
 # 基础配置（仅 IndexNow）
 curl -X POST "https://your-worker.workers.dev/api/sites" \
+  -H "Authorization: Bearer your-admin-token" \
   -H "Content-Type: application/json" \
   -d '{
     "sitemapUrl": "https://example.com/sitemap.xml",
@@ -233,6 +237,7 @@ curl -X POST "https://your-worker.workers.dev/api/sites" \
 
 # 完整配置（含 Bing）
 curl -X POST "https://your-worker.workers.dev/api/sites" \
+  -H "Authorization: Bearer your-admin-token" \
   -H "Content-Type: application/json" \
   -d '{
     "sitemapUrl": "https://example.com/sitemap.xml",
@@ -268,6 +273,12 @@ wrangler delete                   # 删除 Worker
 ---
 
 ## API 接口参考
+
+除 `/health` 外，所有 HTTP 接口都需要携带管理 token：
+
+```bash
+-H "Authorization: Bearer your-admin-token"
+```
 
 ### 网站管理
 

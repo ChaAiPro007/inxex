@@ -2,9 +2,25 @@
   "info": {
     "_postman_id": "indexnow-worker-api-collection",
     "name": "IndexNow Worker API",
-    "description": "IndexNow Worker API - 自动化 sitemap 采集与 URL 提交系统\n\n部署地址: https://index.seo9.org",
+    "description": "IndexNow Worker API - 自动化 sitemap 采集与 URL 提交系统\n\n部署地址: https://your-worker.workers.dev",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{ADMIN_TOKEN}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "ADMIN_TOKEN",
+      "value": "your-admin-token"
+    }
+  ],
   "item": [
     {
       "name": "IndexNow API",
@@ -19,9 +35,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/health",
+                  "raw": "https://your-worker.workers.dev/health",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["health"]
                 },
                 "description": "检查服务运行状态"
@@ -41,9 +57,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/config",
+                  "raw": "https://your-worker.workers.dev/config",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["config"]
                 },
                 "description": "查看当前配置（API Key 已脱敏）"
@@ -56,9 +72,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/status?site=default",
+                  "raw": "https://your-worker.workers.dev/status?site=default",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["status"],
                   "query": [
                     {
@@ -78,9 +94,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/history?site=default",
+                  "raw": "https://your-worker.workers.dev/history?site=default",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["history"],
                   "query": [
                     {
@@ -100,9 +116,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/trigger?site=default&channel=all",
+                  "raw": "https://your-worker.workers.dev/trigger?site=default&channel=all",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["trigger"],
                   "query": [
                     {
@@ -132,9 +148,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/api/sites",
+                  "raw": "https://your-worker.workers.dev/api/sites",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["api", "sites"]
                 },
                 "description": "获取所有已配置的站点列表"
@@ -163,9 +179,9 @@
                   "raw": "{\n  \"sitemapUrl\": \"https://example.com/sitemap.xml\",\n  \"apiKey\": \"0123456789abcdef0123456789abcdef\",\n  \"name\": \"My Site\",\n  \"enabled\": true,\n  \"interval\": 6\n}"
                 },
                 "url": {
-                  "raw": "https://index.seo9.org/api/sites",
+                  "raw": "https://your-worker.workers.dev/api/sites",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["api", "sites"]
                 },
                 "description": "添加新站点配置\n\n必填字段:\n- sitemapUrl: Sitemap 地址\n- apiKey: IndexNow API Key（32位十六进制字符）\n\n可选字段:\n- id: 站点ID（默认用域名）\n- name: 站点名称\n- enabled: 是否启用（默认 true）\n- interval: 执行间隔小时数（默认 6）\n- bingEnabled: 是否启用 Bing 提交\n- bingApiKey: Bing Webmaster API Key\n- bingDailyQuota: Bing 每日配额（默认 100，范围 1-500）"
@@ -185,9 +201,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/api/sites/example.com",
+                  "raw": "https://your-worker.workers.dev/api/sites/example.com",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["api", "sites", "example.com"]
                 },
                 "description": "获取指定站点的详细配置"
@@ -222,9 +238,9 @@
                   "raw": "{\n  \"enabled\": true,\n  \"interval\": 12,\n  \"bingEnabled\": true,\n  \"bingDailyQuota\": 200\n}"
                 },
                 "url": {
-                  "raw": "https://index.seo9.org/api/sites/example.com",
+                  "raw": "https://your-worker.workers.dev/api/sites/example.com",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["api", "sites", "example.com"]
                 },
                 "description": "更新站点配置，只传需要更新的字段"
@@ -244,9 +260,9 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/api/sites/example.com",
+                  "raw": "https://your-worker.workers.dev/api/sites/example.com",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["api", "sites", "example.com"]
                 },
                 "description": "删除指定站点配置"
@@ -271,9 +287,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/api/stats/daily?days=7",
+                  "raw": "https://your-worker.workers.dev/api/stats/daily?days=7",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["api", "stats", "daily"],
                   "query": [
                     {
@@ -306,9 +322,9 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "https://index.seo9.org/api/stats/summary",
+                  "raw": "https://your-worker.workers.dev/api/stats/summary",
                   "protocol": "https",
-                  "host": ["index", "seo9", "org"],
+                  "host": ["your-worker", "workers", "dev"],
                   "path": ["api", "stats", "summary"]
                 },
                 "description": "获取总体统计摘要"

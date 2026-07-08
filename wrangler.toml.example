@@ -35,6 +35,11 @@ CRON_SCHEDULE = "0 */6 * * *"
 # 输入你的 IndexNow API Key（32位十六进制字符）
 # 示例: openssl rand -hex 16
 
+# 管理接口密钥（必填）
+# 除 /health 外，/api/sites、/api/stats、/status、/history、/config、/trigger 都需要鉴权
+# 使用 wrangler secret put ADMIN_TOKEN 命令添加
+# 请求时携带: Authorization: Bearer <ADMIN_TOKEN>
+
 # Cron 触发器
 # 定时执行 URL 提交任务
 [triggers]

@@ -19,6 +19,10 @@ export default {
     const path = url.pathname
 
     try {
+      if (path !== '/health' && !isAuthorized(request, env)) {
+        return unauthorizedResponse()
+      }
+
       // API 路由处理
       if (path.startsWith('/api/sites')) {
         return await handleSitesAPI(request, env)
@@ -143,6 +147,40 @@ export default {
       throw error
     }
   },
+}
+
+/**
+ * 管理接口鉴权。
+ * 支持 Authorization: Bearer <token> 和 X-Admin-Token: <token>。
+ */
+function isAuthorized(request: Request, env: Env): boolean {
+  const expected = env.ADMIN_TOKEN
+  if (!expected) {
+    logger.error('ADMIN_TOKEN is not configured; refusing protected request')
+    return false
+  }
+
+  const authorization = request.headers.get('Authorization') || ''
+  const bearerPrefix = 'Bearer '
+  const bearerToken = authorization.startsWith(bearerPrefix)
+    ? authorization.slice(bearerPrefix.length).trim()
+    : ''
+  const headerToken = request.headers.get('X-Admin-Token') || ''
+
+  return bearerToken === expected || headerToken === expected
+}
+
+function unauthorizedResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: 'Unauthorized',
+    }),
+    {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }
+  )
 }
 
 /**

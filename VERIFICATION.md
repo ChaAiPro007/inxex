@@ -19,7 +19,8 @@ wrangler tail --format pretty
 
 ```bash
 # 查看最近一次执行
-curl https://your-worker.workers.dev/status | jq
+curl -H "Authorization: Bearer your-admin-token" \
+  https://your-worker.workers.dev/status | jq
 ```
 
 **响应示例**:
@@ -57,7 +58,8 @@ curl https://your-worker.workers.dev/status | jq
 
 ```bash
 # 查看最近10次执行记录
-curl https://your-worker.workers.dev/history | jq
+curl -H "Authorization: Bearer your-admin-token" \
+  https://your-worker.workers.dev/history | jq
 ```
 
 **响应示例**:
@@ -78,7 +80,8 @@ curl https://your-worker.workers.dev/history | jq
 
 ```bash
 # 手动触发一次提交
-curl https://your-worker.workers.dev/trigger
+curl -H "Authorization: Bearer your-admin-token" \
+  https://your-worker.workers.dev/trigger
 
 # 响应示例
 {
@@ -153,7 +156,8 @@ wrangler kv:key list --binding CACHE | grep "url:"
 
 ```bash
 # 每天查看一次执行历史
-curl https://your-worker.workers.dev/history | \
+curl -H "Authorization: Bearer your-admin-token" \
+  https://your-worker.workers.dev/history | \
   jq '.records[0] | {timestamp, total: .stats.total, success: .stats.successful}'
 
 # 输出示例:
